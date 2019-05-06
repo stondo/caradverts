@@ -2,7 +2,7 @@ import com.google.inject.AbstractModule
 import javax.inject.Singleton
 import net.codingwell.scalaguice.ScalaModule
 import play.api.{Configuration, Environment}
-import v1.caradvert.{CarAdvertRepository, CarAdvertService}
+import v1.caradvert.{CarAdvertRepository, CarAdvertRepositoryImpl}
 
 /**
   * Sets up custom components for Play.
@@ -12,6 +12,6 @@ import v1.caradvert.{CarAdvertRepository, CarAdvertService}
 class Module(environment: Environment, configuration: Configuration) extends AbstractModule with ScalaModule {
 
   override def configure(): Unit = {
-    bind[CarAdvertRepository].to[CarAdvertService].in[Singleton]
+    bind[CarAdvertRepository].to[CarAdvertRepositoryImpl].in[Singleton]
   }
 }

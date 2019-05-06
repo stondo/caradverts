@@ -1,20 +1,19 @@
 package v1.caradvert
 
-import java.util.UUID
-
-import models.CarAdvert
+import models.CarAdvertRefined
+import models.slick.CarAdvert
 import play.api.MarkerContext
 
 import scala.concurrent.Future
 
 trait CarAdvertRepository {
-  def create(data: CarAdvert)(implicit mc: MarkerContext): Future[Option[UUID]]
+  def create(data: CarAdvertRefined)(implicit mc: MarkerContext): Future[Int]
 
-  def update(data: CarAdvert)(implicit mc: MarkerContext): Future[Boolean] // Future[Option[CarAdvert]]
+  def update(id: Long, data: CarAdvertRefined)(implicit mc: MarkerContext): Future[Int]
 
-  def list()(implicit mc: MarkerContext): Future[Iterable[CarAdvert]]
+  def list(sortByField: Option[String])(implicit mc: MarkerContext): Future[Iterable[CarAdvert]]
 
-  def get(id: UUID)(implicit mc: MarkerContext): Future[Option[CarAdvert]]
+  def get(id: Long)(implicit mc: MarkerContext): Future[Option[CarAdvert]]
 
-  def delete(id: UUID)(implicit mc: MarkerContext): Future[Boolean]
+  def delete(id: Long)(implicit mc: MarkerContext): Future[Int]
 }

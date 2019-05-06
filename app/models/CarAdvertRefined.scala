@@ -1,11 +1,11 @@
 package models
 
-import java.time.LocalDate
-import java.util.UUID
+import java.time.{LocalDate, LocalDateTime}
 
 import play.api.libs.json.{Json, OFormat}
 import utils.Refinements.{Mileage, Price, Title}
 import de.swsnr.refined.play.json._
+import models.slick.CarAdvert
 
 /*
 Car adverts should have the following fields:
@@ -19,15 +19,29 @@ Car adverts should have the following fields:
  first registration (only for used cars):date without time.
  */
 
-final case class CarAdvert(id: UUID,
-                           title: Title,
-                           fuel: FuelType,
-//                           fuel: FuelTypeString,
-                           price: Price,
-                           `new`: Boolean,
-                           mileage: Option[Mileage] = None,
-                           `first registration`: Option[LocalDate] = None)
+final case class CarAdvertRefined(title: Title,
+                                  fuel: FuelType,
+                                  price: Price,
+                                  `new`: Boolean,
+                                  mileage: Option[Mileage] = None,
+                                  `first registration`: Option[LocalDate] = None) {
 
-object CarAdvert {
-  implicit val carAdvertFormat: OFormat[CarAdvert] = Json.format[CarAdvert]
+  def toCarAdvert(id: Option[Long] = None,
+                  createdAt: LocalDateTime = LocalDateTime.now,
+                  updatedAt: Option[LocalDateTime] = None) =
+    CarAdvert(
+      id,
+      title.value,
+      fuel.toString.toLowerCase,
+      price.value,
+      `new`,
+      if (mileage.nonEmpty) Some(mileage.get.value) else None,
+      if (`first registration`.nonEmpty) Some(`first registration`.get) else None,
+      createdAt,
+      updatedAt
+    )
+}
+
+object CarAdvertRefined {
+  implicit val carAdvertRefinedFormat: OFormat[CarAdvertRefined] = Json.format[CarAdvertRefined]
 }

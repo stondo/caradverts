@@ -1,52 +1,14 @@
 package v1.caradvert
 
-import java.time.LocalDate
-import java.util.UUID
-
-import eu.timepit.refined.collection.NonEmpty
 import javax.inject.Inject
-import models.{CarAdvert, Diesel, FuelType, Gasoline, NotSelected}
+import models.slick.CarAdvert
+import models.validation.CarAdvertFormInput
 import play.api.Logger
-import play.api.data.Form
-import play.api.libs.json.Json
+import play.api.data.{Form, FormError}
+import play.api.libs.json.{Json, OFormat}
 import play.api.mvc.{Action, AnyContent, Result}
-import utils.Refinements._
 
 import scala.concurrent.{ExecutionContext, Future}
-
-final case class CarAdvertFormInput(title: String,
-                                    fuel: FuelType,
-                                    price: Int,
-                                    `new`: Boolean,
-                                    mileage: Option[Int] = None,
-                                    `first registration`: Option[LocalDate] = None) {
-
-  def toCarAdvert(): CarAdvert = {
-
-    val titleRefinedEither: Either[String, Title] = Title.from(title)
-    val priceRefinedEither: Either[String, Price] = Price.from(price)
-
-    mileage.fold {
-      val (titleRefined, priceRefined) =
-        if (titleRefinedEither.isRight && priceRefinedEither.isRight)
-          (titleRefinedEither.right.get, priceRefinedEither.right.get)
-        else throw new Exception("Invalid starting value provided")
-
-      CarAdvert(UUID.randomUUID(), titleRefined, fuel, priceRefined, `new`)
-
-    } { mil =>
-      val mileageRefinedEither = Mileage.from(mil)
-      val (titleRefined, priceRefined, mileageRefined) =
-        if (titleRefinedEither.isRight && priceRefinedEither.isRight && mileageRefinedEither.isRight)
-          (titleRefinedEither.right.get, priceRefinedEither.right.get, mileageRefinedEither.right.get)
-        else throw new Exception("Invalid starting value provided")
-
-      CarAdvert(UUID.randomUUID(), titleRefined, fuel, priceRefined, `new`, Some(mileageRefined), `first registration`)
-    }
-
-  }
-
-}
 
 /**
   * Takes HTTP requests and produces JSON.
@@ -54,64 +16,75 @@ final case class CarAdvertFormInput(title: String,
 class CarAdvertController @Inject()(cc: CarAdvertControllerComponents)(implicit ec: ExecutionContext)
     extends CarAdvertBaseController(cc) {
 
-  private val logger = Logger(getClass)
+  implicit val carAdvertFormat: OFormat[CarAdvert] = Json.format[CarAdvert]
 
-  import play.api.data.format.Formatter
-  import play.api.data.format.Formats._
-  implicit object FuelTypeFormatter extends Formatter[FuelType] {
-    override val format = Some(("format.fuelType", Nil))
-    override def bind(key: String, data: Map[String, String]) =
-      parsing(s => if (s.equals("GASOLINE")) Gasoline else if (s.equals("DIESEL")) Diesel else NotSelected,
-              "error.fuelType",
-              Nil)(key, data)
-    override def unbind(key: String, value: FuelType) = Map(key -> value.toString)
+  val logger = Logger(getClass)
+
+  private[this] val noResourceFound: String = cc.config.get[String]("noResourceFound")
+
+  private[this] val noResourceFoundJsonError = Json.toJson(Map("error" -> noResourceFound))
+
+  private[this] def buildBadFormErrorMsg(e: FormError): FormError = if (e.key == "") e.copy("error") else e
+
+  private[this] def buildUpdateOrDeleteResult(result: Int): Result =
+    if (result == 1) NoContent
+    else NotFound(noResourceFoundJsonError)
+
+  def index(sortByField: Option[String] = None): Action[AnyContent] = CarAdvertAction.async { implicit request =>
+    logger.trace(s"index: $sortByField")
+
+    carAdvertResourceHandler.find(sortByField).map { carAdverts =>
+      Ok(Json.toJson(carAdverts))
+    }
   }
-
-  private val form: Form[CarAdvertFormInput] = {
-    import play.api.data.Forms._
-
-    Form(
-      mapping(
-        "title"              -> nonEmptyText,
-        "fuel"               -> of[FuelType],
-        "price"              -> number(min = 1),
-        "new"                -> boolean,
-        "mileage"            -> optional(number(min = 1)),
-        "first registration" -> optional(localDate)
-      )(CarAdvertFormInput.apply)(CarAdvertFormInput.unapply)
-    )
-  }
-
-//  def index: Action[AnyContent] = CarAdvertAction.async { implicit request =>
-//    logger.trace("index: ")
-//    carAdvertResourceHandler.find.map { carAdverts =>
-//      Ok(Json.toJson(carAdverts))
-//    }
-//  }
 
   def process: Action[AnyContent] = CarAdvertAction.async { implicit request =>
     logger.trace("process: ")
     processJsonPost()
   }
 
-//  def show(id: String): Action[AnyContent] = CarAdvertAction.async { implicit request =>
-//    logger.trace(s"show: id = $id")
-//    carAdvertResourceHandler.lookup(id).map { carAdvert =>
-//      Ok(Json.toJson(carAdvert))
-//    }
-//  }
+  def show(id: Long): Action[AnyContent] = CarAdvertAction.async { implicit request =>
+    logger.trace(s"show: id = $id")
+    carAdvertResourceHandler.lookup(id).map { carAdvertOpt =>
+      carAdvertOpt.fold(NotFound(noResourceFoundJsonError))(carAdvert => Ok(Json.toJson(carAdvert)))
+
+    }
+  }
+
+  def update(id: Long): Action[AnyContent] = CarAdvertAction.async { implicit request =>
+    logger.trace(s"update: id = $id")
+    processJsonPut(id)
+  }
+
+  def delete(id: Long): Action[AnyContent] = CarAdvertAction.async { implicit request =>
+    logger.trace(s"delete: id = $id")
+    carAdvertResourceHandler.delete(id).map(buildUpdateOrDeleteResult)
+  }
 
   private def processJsonPost[A]()(implicit request: CarAdvertRequest[A]): Future[Result] = {
     def failure(badForm: Form[CarAdvertFormInput]): Future[Result] = {
-      Future.successful(BadRequest(badForm.errorsAsJson))
+      Future.successful(BadRequest(badForm.copy(errors = badForm.errors.map(buildBadFormErrorMsg)).errorsAsJson))
     }
 
-    def success(input: CarAdvertFormInput) = {
-      carAdvertResourceHandler.create(input.toCarAdvert()).map { carAdvert =>
-        Created(Json.toJson(carAdvert))
-      }
+    def success(input: CarAdvertFormInput): Future[Result] = {
+      carAdvertResourceHandler.create(cc.carAdvertValidation.toCarAdvertRefined(input)).map(_ => Created)
     }
 
-    form.bindFromRequest().fold(failure, success)
+    cc.carAdvertValidation.form.bindFromRequest().fold(failure, success)
   }
+
+  private def processJsonPut[A](id: Long)(implicit request: CarAdvertRequest[A]): Future[Result] = {
+    def failure(badForm: Form[CarAdvertFormInput]): Future[Result] = {
+      Future.successful(BadRequest(badForm.copy(errors = badForm.errors.map(buildBadFormErrorMsg)).errorsAsJson))
+    }
+
+    def success(input: CarAdvertFormInput): Future[Result] = {
+      carAdvertResourceHandler
+        .update(id, cc.carAdvertValidation.toCarAdvertRefined(input))
+        .map(buildUpdateOrDeleteResult)
+    }
+
+    cc.carAdvertValidation.form.bindFromRequest().fold(failure, success)
+  }
+
 }

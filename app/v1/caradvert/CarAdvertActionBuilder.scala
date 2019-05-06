@@ -2,7 +2,7 @@ package v1.caradvert
 
 import javax.inject.Inject
 import net.logstash.logback.marker.LogstashMarker
-import play.api.{Logger, MarkerContext}
+import play.api.{Configuration, Logger, MarkerContext}
 import play.api.http.{FileMimeTypes, HttpVerbs}
 import play.api.i18n.{Langs, MessagesApi}
 import play.api.mvc._
@@ -10,7 +10,7 @@ import play.api.mvc._
 import scala.concurrent.{ExecutionContext, Future}
 
 /**
-  * A wrapped request for post resources.
+  * A wrapped request for caradvert resources.
   *
   * This is commonly used to hold request-specific information like
   * security credentials, and useful shortcut methods.
@@ -85,7 +85,9 @@ class CarAdvertActionBuilder @Inject()(messagesApi: MessagesApi, playBodyParsers
   */
 case class CarAdvertControllerComponents @Inject()(carAdvertActionBuilder: CarAdvertActionBuilder,
                                                    carAdvertResourceHandler: CarAdvertResourceHandler,
+                                                   carAdvertValidation: CarAdvertValidation,
                                                    actionBuilder: DefaultActionBuilder,
+                                                   config: Configuration,
                                                    parsers: PlayBodyParsers,
                                                    messagesApi: MessagesApi,
                                                    langs: Langs,

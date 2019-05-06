@@ -1,0 +1,16 @@
+version: '3'
+services:
+  database:
+    image: "postgres:11.2"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_PASSWORD: scout24
+      POSTGRES_USER: scout24
+      POSTGRES_DB: scout24tc
+    ports:
+      - 5432:5432
+    expose:
+      - 5432
+volumes:
+  db_data:
