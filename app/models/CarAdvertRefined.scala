@@ -2,6 +2,7 @@ package models
 
 import java.time.LocalDate
 import java.util.UUID
+
 import play.api.libs.json.{Json, OFormat}
 import utils.Refinements.{Mileage, Price, Title}
 import de.swsnr.refined.play.json._
@@ -21,6 +22,7 @@ Car adverts should have the following fields:
 final case class CarAdvert(id: UUID,
                            title: Title,
                            fuel: FuelType,
+//                           fuel: FuelTypeString,
                            price: Price,
                            `new`: Boolean,
                            mileage: Option[Mileage] = None,
